@@ -1,0 +1,18 @@
+{
+  "__bytecode.const": {
+    "blob_name": ".bytecode",
+    "blob_size": 3,
+    "input_size": 0
+  },
+  "__constants.const": {
+    "blob_name": "",
+    "blob_size": 933,
+    "input_size": 2313
+  },
+  "module.__main__.const": {
+    "blob_name": "__main__",
+    "blob_size": 5870,
+    "input_size": 10781
+  },
+  "total": 518
+}
