@@ -1,6 +1,6 @@
 # SlimSynth
 Small form Arduino/python controlled waveform generator and synthesizer.
-# OSCILLOSCOPE-9000 Synth Workstation
+# SlimSynth WaveForm Generator/Synthesizer
 
 ## Overview
 
