@@ -4,6 +4,8 @@
 
 SlimSynth is a real-time software synthesizer with hardware control surface, combining an Arduino-based HID (Human Interface Device) controller with a Python DSP (Digital Signal Processing) engine. The system achieves sub-10ms latency through optimized serial communication protocols and lock-free audio buffer management, while presenting data through a vintage CRT-styled matplotlib visualization interface running at 33fps.
 
+![SlimSynth Screenshot](https://github.com/xedoink/SlimSynth/blob/main/SlimSynth%20Screenshot.png)
+
 ## Architecture
 
 ### Hardware Layer: Arduino Microcontroller
