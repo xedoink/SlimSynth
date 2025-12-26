@@ -75,10 +75,3 @@ The matplotlib-based interface provides three synchronized panels:
 
 **Keyboard Event Handling**: matplotlib's event system captures key presses and routes them to effect parameter updates. The system disables default matplotlib keybindings that would conflict with effect controls, allowing keys like 'q' and 'f' to be repurposed while still maintaining fullscreen toggle functionality.
 
-## Design Philosophy
-
-The project balances vintage aesthetics with modern functionality. The visual design deliberately mimics the constraints and appearance of 1980s test equipment, using monospaced fonts, limited color palettes, and CRT-style glow effects. However, the audio synthesis uses contemporary DSP techniques to achieve professional-quality sound.
-
-The effects chain ordering follows standard audio engineering practices, placing harmonic generation and modulation effects before saturation, and time-based effects after distortion. This ensures natural-sounding results and prevents unwanted artifacts.
-
-The distortion algorithm specifically uses multi-stage soft saturation rather than hard clipping to maintain musicality even at extreme settings. The wavefolding technique creates complex harmonics through smooth waveshaping rather than harsh limiting, producing the characteristic "wub" sound of bass synthesis without the harshness of simple clipping distortion.
