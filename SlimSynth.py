@@ -39,10 +39,10 @@ except Exception as e:
 # Vintage CRT styling
 plt.style.use('dark_background')
 fig = plt.figure(figsize=(16, 10), facecolor='black')
-fig.canvas.manager.set_window_title('SlimSynth')
+fig.canvas.manager.set_window_title('OSCILLOSCOPE-9000 /// SYNTH WORKSTATION')
 
 # Disable only the Q quit binding, keep F for fullscreen
-plt.rcParams['keymap.quit'] = []  # Remove 'q' from quit
+plt.rcParams['keymap.quit'] = []
 
 # Create grid layout
 from matplotlib.gridspec import GridSpec
@@ -82,7 +82,7 @@ distortion_level = 0.0     # D/d
 chorus_depth = 0.0         # C/c
 chorus_rate = 2.0          # R/r
 bit_depth = 12             # B/b
-filter_cutoff = 1.0        # L/l
+filter_cutoff = 1.0        # L/l (also controlled by joystick Y)
 reverb_level = 0.0         # E/e
 delay_mix = 0.0            # Y/y
 delay_time = 0.3           # T/t
@@ -91,6 +91,11 @@ tremolo_depth = 0.0        # O/o
 tremolo_rate = 4.0         # P/p
 phaser_depth = 0.0         # A/a
 volume = 0.35              # V/v
+
+# Joystick state
+joy_x_value = 512
+joy_y_value = 512
+target_filter_cutoff = 1.0
 
 # Effect buffers
 chorus_phase = 0.0
@@ -110,7 +115,12 @@ pwm_phase = 0.0
 print("\n" + "="*70)
 print("KEYBOARD CONTROLS - SYNTH WORKSTATION")
 print("="*70)
-print("WAVEFORMS:")
+print("HARDWARE CONTROLS:")
+print("  Joystick X-axis: Frequency sweep speed")
+print("  Joystick Y-axis: Real-time filter cutoff")
+print("  Joystick Button: Cycle waveforms")
+print("  Button (D3):     Cycle waveforms (alternate)")
+print("\nWAVEFORMS:")
 print("  1-8: Select waveform (Saw/Sine/Square/Tri/Pulse/Noise/PWM/Ramp)")
 print("\nEFFECTS:")
 print("  H/h - Harmonics        | D/d - Distortion     | C/c - Chorus Depth")
@@ -180,40 +190,32 @@ def apply_distortion(wave, amount):
         return wave
     
     # Moderate gain for musical distortion
-    gain = 1 + amount * 8  # Reduced from 25 to 8 for balance
+    gain = 1 + amount * 8
     driven = wave * gain
     
     # Smooth waveshaping using multiple tanh stages for warmth
-    # First stage - gentle saturation
     stage1 = np.tanh(driven * 0.8)
-    
-    # Second stage - add character
     stage2 = np.tanh(stage1 * 1.2) * 0.9
     
-    # Wub-wub effect: smooth wavefolder that doesn't clip harshly
+    # Wub-wub effect: smooth wavefolder
     if amount > 0.3:
-        fold_intensity = (amount - 0.3) * 1.4  # Reduced from 2 to 1.4
-        
-        # Smooth sine-based folding for musical wub character
+        fold_intensity = (amount - 0.3) * 1.4
         folded = np.sin(stage2 * np.pi * (1 + fold_intensity))
-        
-        # Gentle blend between clean and folded
         output = stage2 * (1 - fold_intensity * 0.6) + folded * (fold_intensity * 0.6)
     else:
         output = stage2
     
-    # Add subtle harmonic enhancement without harshness
+    # Add subtle harmonic enhancement
     if amount > 0.5:
-        # Smooth waveshaping for extra harmonics
         enhanced = np.sign(output) * np.sqrt(np.abs(output))
-        harmonic_mix = (amount - 0.5) * 0.3  # Reduced from 0.3 for subtlety
+        harmonic_mix = (amount - 0.5) * 0.3
         output = output * (1 - harmonic_mix) + enhanced * harmonic_mix
     
-    # Final gentle saturation to glue it together
+    # Final gentle saturation
     output = np.tanh(output * 1.1) * 0.95
     
-    # Blend with dry signal to maintain clarity
-    dry_mix = 0.15 * (1 - amount)  # Keep some clean signal
+    # Blend with dry signal
+    dry_mix = 0.15 * (1 - amount)
     output = output * (1 - dry_mix) + wave * dry_mix
     
     return output
@@ -254,8 +256,6 @@ def apply_reverb(wave, level):
         return wave
     
     output = np.zeros_like(wave)
-    
-    # Multiple delay taps for reverb
     delays = [0.029, 0.037, 0.041, 0.043]
     
     for i in range(len(wave)):
@@ -371,9 +371,13 @@ def audio_callback(outdata, frames, time_info, status):
     global harmonics_level, distortion_level, chorus_depth, chorus_rate
     global bit_depth, filter_cutoff, volume, reverb_level, delay_mix
     global delay_time, ring_mod_freq, tremolo_depth, tremolo_rate, phaser_depth
+    global target_filter_cutoff
     
     # Smooth frequency transition
     current_freq = current_freq * 0.95 + target_freq * 0.05
+    
+    # Smooth filter cutoff transition (from joystick Y-axis)
+    filter_cutoff = filter_cutoff * 0.9 + target_filter_cutoff * 0.1
     
     t = (np.arange(frames) + phase) / SAMPLE_RATE
     
@@ -410,14 +414,15 @@ stream = sd.OutputStream(
 )
 stream.start()
 
-last_pot_value = 512
+last_x_value = 512
+last_y_value = 512
 
 # Keyboard event handler
 def on_key_press(event):
     global harmonics_level, distortion_level, chorus_depth, chorus_rate
     global bit_depth, filter_cutoff, volume, current_waveform
     global reverb_level, delay_mix, delay_time, ring_mod_freq
-    global tremolo_depth, tremolo_rate, phaser_depth
+    global tremolo_depth, tremolo_rate, phaser_depth, target_filter_cutoff
     
     key = event.key
     
@@ -466,13 +471,13 @@ def on_key_press(event):
             bit_depth = min(16, bit_depth + 1)
         print(f"Bit Depth: {int(bit_depth)}-bit")
     
-    # Filter (L/l for Low-pass)
+    # Filter (L/l - manual keyboard override)
     elif key.lower() == 'l':
         if key == 'L':
-            filter_cutoff = min(1.0, filter_cutoff + 0.1)
+            target_filter_cutoff = min(1.0, target_filter_cutoff + 0.1)
         else:
-            filter_cutoff = max(0.1, filter_cutoff - 0.1)
-        print(f"Filter Cutoff: {filter_cutoff:.2f}")
+            target_filter_cutoff = max(0.1, target_filter_cutoff - 0.1)
+        print(f"Filter Cutoff (Manual): {target_filter_cutoff:.2f}")
     
     # Reverb
     elif key.lower() == 'e':
@@ -545,7 +550,7 @@ def on_key_press(event):
         chorus_depth = 0.0
         chorus_rate = 2.0
         bit_depth = 12
-        filter_cutoff = 1.0
+        target_filter_cutoff = 1.0
         reverb_level = 0.0
         delay_mix = 0.0
         delay_time = 0.3
@@ -563,13 +568,13 @@ def on_key_press(event):
         stream.close()
         arduino.close()
         plt.close('all')
-    
-    # Note: 'f' for fullscreen is handled by matplotlib automatically
 
 fig.canvas.mpl_connect('key_press_event', on_key_press)
 
 def animate(frame):
-    global current_freq, current_waveform, target_freq, last_pot_value
+    global current_freq, current_waveform, target_freq
+    global joy_x_value, joy_y_value, last_x_value, last_y_value
+    global target_filter_cutoff
     
     # Read serial data
     while arduino.in_waiting > 0:
@@ -580,20 +585,24 @@ def animate(frame):
                 
             parts = line.split(',')
             
-            if len(parts) >= 2:
+            if len(parts) >= 4:
                 freq = int(parts[0])
-                pot_value = int(parts[1])
-                waveform_type = int(parts[2]) if len(parts) > 2 else current_waveform
+                x_value = int(parts[1])
+                y_value = int(parts[2])
+                waveform_type = int(parts[3])
                 
-                # Ensure waveform is within range 0-7
+                # Update state
                 waveform_type = waveform_type % 8
-                
                 target_freq = freq
                 current_waveform = waveform_type
-                last_pot_value = pot_value
+                joy_x_value = x_value
+                joy_y_value = y_value
                 
-                spectrogram_data.append((freq, pot_value, waveform_type))
-        except:
+                # Map Y-axis to filter cutoff (inverted: up = brighter, down = darker)
+                target_filter_cutoff = np.interp(y_value, [0, 1023], [0.1, 1.0])
+                
+                spectrogram_data.append((freq, x_value, y_value))
+        except Exception as e:
             pass
     
     # Clear axes
@@ -650,8 +659,9 @@ def animate(frame):
         ax2.set_xlabel('TIME [ms]', color=PHOSPHOR_GREEN, fontsize=10, family='monospace')
         ax2.set_ylabel('AMP', color=PHOSPHOR_GREEN, fontsize=10, family='monospace')
         
-        pot_percent = int(last_pot_value / 1023.0 * 100)
-        title_text = f'{waveform_names[current_waveform]} | {display_freq} Hz | POT: {pot_percent}%'
+        joy_x_percent = int(joy_x_value / 1023.0 * 100)
+        joy_y_percent = int(joy_y_value / 1023.0 * 100)
+        title_text = f'{waveform_names[current_waveform]} | {display_freq} Hz | X:{joy_x_percent}% Y:{joy_y_percent}%'
         ax2.set_title(title_text, color=PHOSPHOR_GREEN, 
                      fontsize=12, family='monospace', weight='bold')
     
@@ -697,10 +707,8 @@ def animate(frame):
             continue
         
         if name in ["CHR RATE", "DELAY TIME", "TREM RATE", "BIT DEPTH"]:
-            # No bar, just value
             text = f"{name:12s} {value:.1f}" if name != "BIT DEPTH" else f"{name:12s} {int(value)}"
         else:
-            # Bar + value
             bar_length = int((value / max_val) * 10)
             bar = '█' * bar_length + '░' * (10 - bar_length)
             text = f"{name:10s} {bar} {value:.1f}"
@@ -717,10 +725,8 @@ def animate(frame):
             continue
         
         if name in ["TREM RATE", "BIT DEPTH"]:
-            # No bar, just value
             text = f"{name:10s} {value:.1f}" if name != "BIT DEPTH" else f"{name:10s} {int(value)}"
         else:
-            # Bar + value
             bar_length = int((value / max_val) * 10)
             bar = '█' * bar_length + '░' * (10 - bar_length)
             text = f"{name:8s} {bar} {value:.1f}"

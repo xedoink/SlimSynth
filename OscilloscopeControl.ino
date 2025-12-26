@@ -1,57 +1,67 @@
 int freq = 100;
-int potPin = A0;
-int buttonPin = 2;
+int joyXPin = A0;        // Joystick X-axis (sweep speed control)
+int joyYPin = A1;        // Joystick Y-axis (filter cutoff control)
+int joyButtonPin = 2;    // Joystick button (waveform selector)
 int waveformType = 0;    // 0-7 for 8 waveforms
 
-bool lastButtonState = HIGH;
+bool lastJoyButtonState = HIGH;
 unsigned long lastSendTime = 0;
-const int sendInterval = 20;
+const int sendInterval = 20;  // 20ms = 50Hz update rate
 
 void setup() {
   Serial.begin(115200);
-  pinMode(potPin, INPUT);
-  pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(joyXPin, INPUT);
+  pinMode(joyYPin, INPUT);
+  pinMode(joyButtonPin, INPUT_PULLUP);
   delay(1000);
 }
 
 void loop() {
-  // Read button
-  bool buttonState = digitalRead(buttonPin);
-  if (buttonState == LOW && lastButtonState == HIGH) {
+  // Read joystick button (waveform cycling)
+  bool joyButtonState = digitalRead(joyButtonPin);
+  if (joyButtonState == LOW && lastJoyButtonState == HIGH) {
     waveformType = (waveformType + 1) % 8;  // Cycle through 0-7
     
-    // Immediately send on button press
+    // Immediate feedback transmission on button press
+    int xValue = analogRead(joyXPin);
+    int yValue = analogRead(joyYPin);
     Serial.print(freq);
     Serial.print(",");
-    Serial.print(analogRead(potPin));
+    Serial.print(xValue);
+    Serial.print(",");
+    Serial.print(yValue);
     Serial.print(",");
     Serial.println(waveformType);
+    
     delay(200);  // Debounce
   }
-  lastButtonState = buttonState;
+  lastJoyButtonState = joyButtonState;
   
-  // Read potentiometer
-  int potValue = analogRead(potPin);
+  // Read joystick axes
+  int xValue = analogRead(joyXPin);  // Sweep speed
+  int yValue = analogRead(joyYPin);  // Filter cutoff
   
-  // Map potentiometer to sweep speed
-  int sweepSpeed = map(potValue, 0, 1023, 2, 100);
+  // Map X-axis to sweep speed (2-100 Hz per step)
+  int sweepSpeed = map(xValue, 0, 1023, 2, 100);
   
-  // Send data at regular intervals
+  // Periodic data transmission
   unsigned long currentTime = millis();
   if (currentTime - lastSendTime >= sendInterval) {
     Serial.print(freq);
     Serial.print(",");
-    Serial.print(potValue);
+    Serial.print(xValue);
+    Serial.print(",");
+    Serial.print(yValue);
     Serial.print(",");
     Serial.println(waveformType);
     lastSendTime = currentTime;
   }
   
-  // Update frequency
+  // Update frequency with variable sweep speed
   freq += sweepSpeed;
   if (freq > 2000) {
     freq = 100;
   }
   
-  delay(5);
+  delay(5);  // Main loop timing
 }
